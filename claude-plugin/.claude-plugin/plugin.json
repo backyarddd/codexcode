@@ -1,5 +1,10 @@
 {
   "name": "codexcode",
   "version": "0.1.0",
-  "description": "Race Claude Code and Codex on the same prompt, have each critique the other, then accept a result by natural language."
+  "description": "Race Claude Code and Codex on the same prompt, have each critique the other, then accept a result by natural language.",
+  "author": {
+    "name": "backyarddd"
+  },
+  "homepage": "https://github.com/backyarddd/codexcode",
+  "repository": "https://github.com/backyarddd/codexcode"
 }

@@ -45,8 +45,8 @@ Whichever agent you invoke CodexCode from is the **host**. The other agent is
 the **challenger**.
 
 ```
-You type /codexcode "..."  inside  Claude Code     ->  host = Claude Code,  challenger = Codex
-You type /codexcode "..."  inside  Codex           ->  host = Codex,        challenger = Claude Code
+You type /codexcode:race "..."  inside  Claude Code  ->  host = Claude Code,  challenger = Codex
+You type /codexcode:race "..."  inside  Codex        ->  host = Codex,        challenger = Claude Code
 ```
 
 The flow is identical in both directions:
@@ -169,14 +169,19 @@ race starts.
 From inside Claude Code:
 
 ```
-/codexcode add a CLI flag --json that prints the parsed config as pretty JSON and exits
+/codexcode:race add a CLI flag --json that prints the parsed config as pretty JSON and exits
 ```
 
 From inside the Codex CLI:
 
 ```
-/codexcode add a CLI flag --json that prints the parsed config as pretty JSON and exits
+/codexcode:race add a CLI flag --json that prints the parsed config as pretty JSON and exits
 ```
+
+Both plugins live under the `codexcode` namespace because plugin slash commands
+are always namespaced by their plugin name. If you also want a one-word alias
+like `/race`, drop the same skill into your personal `.claude/skills/` or
+`.codex/skills/` directory.
 
 Either invocation:
 
@@ -555,7 +560,7 @@ You are inside Claude Code. You have a tangled `auth.py` that you want
 extracted into smaller modules. You are not sure how to split it.
 
 ```
-/codexcode refactor src/auth.py into focused modules. Keep public API stable. Add no new dependencies. Update imports across the repo.
+/codexcode:race refactor src/auth.py into focused modules. Keep public API stable. Add no new dependencies. Update imports across the repo.
 ```
 
 What happens:
@@ -589,7 +594,7 @@ You are inside Codex. You have an intermittent test failure in
 not sure.
 
 ```
-/codexcode investigate the intermittent failure in tests/test_pagination.py and fix it. Do not change unrelated tests.
+/codexcode:race investigate the intermittent failure in tests/test_pagination.py and fix it. Do not change unrelated tests.
 ```
 
 What happens:
@@ -617,7 +622,7 @@ your CLI. You suspect both agents will produce different but partially-
 correct designs.
 
 ```
-/codexcode add a --log-format flag with values text|json|logfmt. When json or logfmt, structured fields include timestamp, level, message, and any kwargs. Add a smoke test.
+/codexcode:race add a --log-format flag with values text|json|logfmt. When json or logfmt, structured fields include timestamp, level, message, and any kwargs. Add a smoke test.
 ```
 
 What happens:

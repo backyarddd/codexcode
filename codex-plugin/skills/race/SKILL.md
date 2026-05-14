@@ -1,12 +1,15 @@
 ---
-description: Race Codex against this Claude Code session on the same prompt, have each agent critique the other, then accept a result by plain English.
-argument-hint: "<task prompt>"
+name: race
+description: Race Claude Code against this Codex session on the same prompt, have each agent critique the other, then accept a result by plain English. Invoke as /codexcode:race <task prompt>. Trigger when the user asks for a head to head, a second opinion from Claude Code, or invokes /codexcode:race.
 ---
 
-You are running the CodexCode workflow. Claude Code is the host. Codex is the
-challenger. The user's task prompt is in `$ARGUMENTS`.
+# CodexCode (from Codex)
 
-If `$ARGUMENTS` is empty, ask the user once for the task they want to race, then continue.
+You are Codex acting as the host of the CodexCode workflow. Claude Code is the
+challenger. The user has given you a task prompt that you should race against
+Claude Code.
+
+If the user has not given a prompt yet, ask once for the task and then continue. The user's task prompt is what you will pass to `--prompt` below.
 
 ## Phase 0: preflight
 
@@ -16,12 +19,12 @@ Run, in order, and stop immediately if any step fails:
 codexcode verify
 ```
 
-Stop if `codexcode verify` exits non-zero. Print the failure to the user verbatim and offer to help fix it (install missing CLI, commit pending changes, etc).
+If `codexcode verify` exits non-zero, surface the failure verbatim and offer to help fix it (install the missing CLI, commit pending changes, authenticate, etc).
 
 ## Phase 1: start
 
 ```bash
-codexcode start --host claude-code --prompt "$ARGUMENTS"
+codexcode start --host codex --prompt "<user prompt>"
 ```
 
 Parse the JSON output. You will use:
@@ -34,11 +37,11 @@ Parse the JSON output. You will use:
 Tell the user:
 - the session id
 - both worktree paths
-- that Codex is running headlessly in the background with PID `challenger_pid`
+- that Claude Code is running headlessly in the background with PID `challenger_pid`
 
 ## Phase 2: implement (host attempt)
 
-Now do the implementation yourself, in the host worktree. Treat `host_worktree` as your working directory for this phase. Read the user's prompt (it was passed verbatim in $ARGUMENTS) and implement it as if it were a normal coding task: explore, edit, write, run commands. Do not look at the challenger worktree or its log during this phase.
+Now do the implementation yourself, in the host worktree. Treat `host_worktree` as your working directory for this phase. Read the user's prompt and implement it as a normal coding task: explore, edit, write, run commands. Do not look at the challenger worktree or its log during this phase.
 
 When you are satisfied, capture the diff:
 
@@ -52,7 +55,7 @@ codexcode submit <session_id> --side host
 codexcode wait <session_id>
 ```
 
-This blocks until the Codex process exits. While waiting, you may report progress to the user. If `wait` times out, run `codexcode status <session_id>` to peek at the challenger log tail.
+This blocks until the Claude Code process exits. While waiting, you may report progress to the user. If `wait` times out, run `codexcode status <session_id>` to peek at the challenger log tail.
 
 Once `wait` returns, snapshot the challenger's diff:
 
@@ -84,21 +87,21 @@ Resolve ambiguity with at most one focused clarifying question. Never present a 
 
 Common shapes you should recognize and the action for each:
 
-- "ship the host", "go with yours", "land Claude's", "accept claude":
+- "ship the host", "go with yours", "land codex's", "accept codex":
   ```bash
   codexcode apply <session_id> --from host
   ```
-- "ship the challenger", "go with codex", "accept codex":
+- "ship the challenger", "go with Claude", "accept Claude Code":
   ```bash
   codexcode apply <session_id> --from challenger
   ```
-- "take the host's tests but the challenger's implementation", "use codex's src/foo.py and claude's tests/", or anything that names files from both sides: build a `--files` spec.
+- "take the host's tests but the challenger's implementation", or any naming of files from both sides: build a `--files` spec.
   ```bash
   codexcode apply <session_id> --files "host:tests/foo.py,challenger:src/foo.py"
   ```
   Use `codexcode files <session_id> --side host` and `... --side challenger` to enumerate available files.
-- "let me see codex's version of X", "show me Claude's foo.py": use `codexcode show <session_id> --side <side> --path <path>` and print the file. Stay in comparison mode afterward.
-- "compose this manually" or any hybrid request that requires editing: read files with `codexcode show ...`, write the chosen combination directly into the original repo using your own Edit/Write tools. After you are satisfied, run `codexcode cleanup <session_id>` and commit on the original branch.
+- "show me Claude's version of X" or "let me see your X": use `codexcode show <session_id> --side <side> --path <path>` and print the file. Stay in comparison mode afterward.
+- "compose this manually" or any hybrid request that requires hand editing: read files with `codexcode show ...`, write the chosen combination directly into the original repo using your own edit tools. After you are satisfied, run `codexcode cleanup <session_id>` and commit on the original branch.
 - "retry with X tweaked", "try again but ask it to use Y": run `codexcode abandon <session_id>` to discard the session, then start a new one with the modified prompt.
 - "scrap it", "abandon", "nevermind": `codexcode abandon <session_id>` and confirm cleanup. Do not commit.
 
@@ -111,7 +114,7 @@ After applying changes (Phase 6 commands that mutate the original tree):
    git -C <repo_root> commit -am "<concise message describing the accepted result>"
    ```
 
-   Write a clean, focused commit message that describes the change in plain English. Do not add Co-Authored-By or any other trailers.
+   Write a clean, focused commit message in plain English. Do not add any trailers.
 3. Run `codexcode cleanup <session_id>` to remove the worktrees and ephemeral branches.
 4. Confirm to the user with the new commit SHA.
 
