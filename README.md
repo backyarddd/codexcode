@@ -45,8 +45,8 @@ Whichever agent you invoke CodexCode from is the **host**. The other agent is
 the **challenger**.
 
 ```
-You type /codexcode:race "..."  inside  Claude Code  ->  host = Claude Code,  challenger = Codex
-You type /codexcode:race "..."  inside  Codex        ->  host = Codex,        challenger = Claude Code
+You type /codexcode "..."  inside  Claude Code  ->  host = Claude Code,  challenger = Codex
+You type /codexcode "..."  inside  Codex        ->  host = Codex,        challenger = Claude Code
 ```
 
 The flow is identical in both directions:
@@ -117,21 +117,28 @@ cd codexcode
 1. Verify Python 3.8+ is on PATH (and print install hints if not).
 2. Warn (but not abort) if `claude` or `codex` is missing.
 3. Symlink `bin/codexcode` into `~/.local/bin/codexcode`.
-4. Copy the Claude Code plugin to `~/.claude/plugins/codexcode/`.
-5. Copy the Codex plugin to `~/.codex/plugins/codexcode/` and mirror its skill into `~/.codex/skills/codexcode/`.
+4. Copy the Claude Code skill to `~/.claude/skills/codexcode/` so it invokes as `/codexcode`.
+5. Copy the Codex skill to `~/.codex/skills/codexcode/` so it invokes as `/codexcode`.
 
 Options:
 
 ```
 ./install.sh --bin-dest /usr/local/bin     # symlink target
-./install.sh --skip-plugin                 # skip Claude Code plugin copy
+./install.sh --skip-plugin                 # skip Claude Code skill copy
 ./install.sh --skip-skill                  # skip Codex skill copy
 ./install.sh --dry-run                     # show what would happen
 ```
 
-To uninstall: delete `~/.claude/plugins/codexcode`, `~/.codex/plugins/codexcode`,
-`~/.codex/skills/codexcode`, and the symlink at `~/.local/bin/codexcode` (or
-wherever you pointed it).
+To uninstall: delete `~/.claude/skills/codexcode`, `~/.codex/skills/codexcode`,
+and the symlink at `~/.local/bin/codexcode` (or wherever you pointed it).
+
+The source tree also ships a packaged plugin manifest for each side
+(`claude-plugin/.claude-plugin/plugin.json` and
+`codex-plugin/.codex-plugin/plugin.json`). The default install path uses the
+standalone skill layout because plugin slash commands are always namespaced as
+`/plugin-name:skill-name`, which would produce `/codexcode:codexcode`. If you
+prefer the namespaced form, copy the corresponding `*-plugin/` directory into
+`~/.claude/plugins/codexcode/` or `~/.codex/plugins/codexcode/`.
 
 ### Verifying the install
 
@@ -169,19 +176,14 @@ race starts.
 From inside Claude Code:
 
 ```
-/codexcode:race add a CLI flag --json that prints the parsed config as pretty JSON and exits
+/codexcode add a CLI flag --json that prints the parsed config as pretty JSON and exits
 ```
 
 From inside the Codex CLI:
 
 ```
-/codexcode:race add a CLI flag --json that prints the parsed config as pretty JSON and exits
+/codexcode add a CLI flag --json that prints the parsed config as pretty JSON and exits
 ```
-
-Both plugins live under the `codexcode` namespace because plugin slash commands
-are always namespaced by their plugin name. If you also want a one-word alias
-like `/race`, drop the same skill into your personal `.claude/skills/` or
-`.codex/skills/` directory.
 
 Either invocation:
 
@@ -560,7 +562,7 @@ You are inside Claude Code. You have a tangled `auth.py` that you want
 extracted into smaller modules. You are not sure how to split it.
 
 ```
-/codexcode:race refactor src/auth.py into focused modules. Keep public API stable. Add no new dependencies. Update imports across the repo.
+/codexcode refactor src/auth.py into focused modules. Keep public API stable. Add no new dependencies. Update imports across the repo.
 ```
 
 What happens:
@@ -594,7 +596,7 @@ You are inside Codex. You have an intermittent test failure in
 not sure.
 
 ```
-/codexcode:race investigate the intermittent failure in tests/test_pagination.py and fix it. Do not change unrelated tests.
+/codexcode investigate the intermittent failure in tests/test_pagination.py and fix it. Do not change unrelated tests.
 ```
 
 What happens:
@@ -622,7 +624,7 @@ your CLI. You suspect both agents will produce different but partially-
 correct designs.
 
 ```
-/codexcode:race add a --log-format flag with values text|json|logfmt. When json or logfmt, structured fields include timestamp, level, message, and any kwargs. Add a smoke test.
+/codexcode add a --log-format flag with values text|json|logfmt. When json or logfmt, structured fields include timestamp, level, message, and any kwargs. Add a smoke test.
 ```
 
 What happens:

@@ -1,5 +1,5 @@
 ---
-description: Race Codex against this Claude Code session on the same prompt, have each agent critique the other, then accept a result by plain English. Invoke as /codexcode:race <task prompt>.
+description: Race Codex against this Claude Code session on the same prompt, have each agent critique the other, then accept a result by plain English. Invoke as /codexcode <task prompt>.
 ---
 
 You are running the CodexCode workflow. Claude Code is the host. Codex is the

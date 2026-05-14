@@ -119,21 +119,16 @@ case ":$PATH:" in
 esac
 
 if [ "$SKIP_PLUGIN" != 1 ]; then
-    PLUGIN_DEST="$HOME/.claude/plugins/codexcode"
-    say "installing Claude Code plugin to $PLUGIN_DEST"
-    do_cmd "mkdir -p '$HOME/.claude/plugins'"
-    do_cmd "rm -rf '$PLUGIN_DEST'"
-    do_cmd "cp -R '$ROOT/claude-plugin' '$PLUGIN_DEST'"
+    CLAUDE_SKILL_DEST="$HOME/.claude/skills/codexcode"
+    say "installing Claude Code skill to $CLAUDE_SKILL_DEST (invoked as /codexcode)"
+    do_cmd "mkdir -p '$HOME/.claude/skills'"
+    do_cmd "rm -rf '$CLAUDE_SKILL_DEST'"
+    do_cmd "cp -R '$ROOT/claude-plugin/skills/codexcode' '$CLAUDE_SKILL_DEST'"
 fi
 
 if [ "$SKIP_SKILL" != 1 ]; then
-    CODEX_PLUGIN_DEST="$HOME/.codex/plugins/codexcode"
     CODEX_SKILL_DEST="$HOME/.codex/skills/codexcode"
-    say "installing Codex plugin to $CODEX_PLUGIN_DEST"
-    do_cmd "mkdir -p '$HOME/.codex/plugins'"
-    do_cmd "rm -rf '$CODEX_PLUGIN_DEST'"
-    do_cmd "cp -R '$ROOT/codex-plugin' '$CODEX_PLUGIN_DEST'"
-    say "mirroring skill into $CODEX_SKILL_DEST so user-level skill discovery picks it up"
+    say "installing Codex skill to $CODEX_SKILL_DEST (invoked as /codexcode)"
     do_cmd "mkdir -p '$HOME/.codex/skills'"
     do_cmd "rm -rf '$CODEX_SKILL_DEST'"
     do_cmd "cp -R '$ROOT/codex-plugin/skills/codexcode' '$CODEX_SKILL_DEST'"

@@ -1,6 +1,6 @@
 ---
-name: race
-description: Race Claude Code against this Codex session on the same prompt, have each agent critique the other, then accept a result by plain English. Invoke as /codexcode:race <task prompt>. Trigger when the user asks for a head to head, a second opinion from Claude Code, or invokes /codexcode:race.
+name: codexcode
+description: Race Claude Code against this Codex session on the same prompt, have each agent critique the other, then accept a result by plain English. Invoke as /codexcode <task prompt>. Trigger when the user asks for a head to head, a second opinion from Claude Code, or invokes /codexcode.
 ---
 
 # CodexCode (from Codex)
