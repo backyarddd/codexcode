@@ -1,70 +1,49 @@
 #!/usr/bin/env bash
-# CodexCode entry shim.
-#
-# Locates a Python 3.8+ interpreter and execs the orchestrator under it. If no
-# suitable interpreter is found, prints platform-specific install instructions
-# and exits non-zero, so the host agent surfaces the problem to the user
-# instead of a cryptic "command not found".
-#
-# Override the interpreter with CODEXCODE_PYTHON=/path/to/python3.
+# CodexCode entry shim. Resolves this file through symlinks, then executes the
+# compiled Node.js CLI from the checkout that owns the real shim.
 set -e
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
-SRC_DIR="$SCRIPT_DIR/../src"
+SOURCE="${BASH_SOURCE[0]}"
+while [ -L "$SOURCE" ]; do
+    DIR="$(cd "$(dirname "$SOURCE")" >/dev/null 2>&1 && pwd)"
+    TARGET="$(readlink "$SOURCE")"
+    case "$TARGET" in
+        /*) SOURCE="$TARGET" ;;
+        *) SOURCE="$DIR/$TARGET" ;;
+    esac
+done
+SCRIPT_DIR="$(cd "$(dirname "$SOURCE")" >/dev/null 2>&1 && pwd)"
+ROOT="$(cd "$SCRIPT_DIR/.." >/dev/null 2>&1 && pwd)"
+CLI="$ROOT/dist/src/cli.js"
 
-MIN_MAJOR=3
-MIN_MINOR=8
-
-_check_version() {
-    local bin="$1"
-    "$bin" -c '
-import sys
-required = (3, 8)
-if sys.version_info[:2] < required:
-    sys.exit(2)
-' >/dev/null 2>&1
-}
-
-_find_python() {
-    if [ -n "${CODEXCODE_PYTHON:-}" ]; then
-        if command -v "$CODEXCODE_PYTHON" >/dev/null 2>&1 && _check_version "$CODEXCODE_PYTHON"; then
-            echo "$CODEXCODE_PYTHON"
-            return 0
-        fi
-        echo "CODEXCODE_PYTHON is set but ${CODEXCODE_PYTHON} is missing or too old." >&2
-        return 1
-    fi
-    for cand in python3.13 python3.12 python3.11 python3.10 python3.9 python3.8 python3 python; do
-        if command -v "$cand" >/dev/null 2>&1 && _check_version "$cand"; then
-            echo "$cand"
-            return 0
-        fi
-    done
-    return 1
-}
-
-PYTHON="$(_find_python || true)"
-
-if [ -z "$PYTHON" ]; then
+if ! command -v node >/dev/null 2>&1; then
     cat >&2 <<EOF
-CodexCode requires Python ${MIN_MAJOR}.${MIN_MINOR} or newer and could not find a
-suitable interpreter on PATH.
+CodexCode requires Node.js 20 or newer and could not find node on PATH.
 
-Install Python and run codexcode again. Suggested commands:
+Install Node.js and run codexcode again. Suggested commands:
 
-  macOS (Homebrew):    brew install python
-  macOS (no Homebrew): xcode-select --install
-  Debian / Ubuntu:     sudo apt-get update && sudo apt-get install -y python3
-  Fedora / RHEL:       sudo dnf install -y python3
-  Arch Linux:          sudo pacman -S python
-  Windows (winget):    winget install Python.Python.3
-
-You can also point CodexCode at an existing interpreter:
-
-  CODEXCODE_PYTHON=/path/to/python3.11 codexcode ...
+  macOS (Homebrew):    brew install node
+  Debian / Ubuntu:     sudo apt-get update && sudo apt-get install -y nodejs npm
+  Fedora / RHEL:       sudo dnf install -y nodejs npm
+  Arch Linux:          sudo pacman -S nodejs npm
 
 EOF
     exit 127
 fi
 
-PYTHONPATH="$SRC_DIR${PYTHONPATH:+:$PYTHONPATH}" exec "$PYTHON" -m codexcode "$@"
+if [ ! -f "$CLI" ]; then
+    cat >&2 <<EOF
+CodexCode is not built yet. Run this from the CodexCode checkout:
+
+  npm install
+  npm run build
+
+Or rerun:
+
+  ./install.sh
+
+EOF
+    exit 127
+fi
+
+exec node "$CLI" "$@"

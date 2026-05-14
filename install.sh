@@ -2,9 +2,9 @@
 # Idempotent installer for CodexCode.
 #
 # What this does:
-#   1. Verifies Python 3.8+ (and offers install hints if missing).
+#   1. Verifies Node.js 20+ and npm (and offers install hints if missing).
 #   2. Symlinks bin/codexcode into a directory on PATH (default ~/.local/bin).
-#   3. Optionally installs the Claude Code plugin to ~/.claude/plugins.
+#   3. Optionally installs the Claude Code skill to ~/.claude/skills.
 #   4. Optionally installs the Codex skill to ~/.codex/skills.
 #
 # Re-running the script overwrites existing symlinks safely. Use --dry-run to
@@ -22,14 +22,13 @@ usage() {
 Usage: ./install.sh [options]
 
   --bin-dest DIR       symlink codexcode into DIR (default: ~/.local/bin)
-  --skip-plugin        do not install the Claude Code plugin
+  --skip-plugin        do not install the Claude Code skill
   --skip-skill         do not install the Codex skill
   --dry-run            show what would happen, change nothing
   -h, --help           print this message
 
 Environment overrides:
   CODEXCODE_BIN_DEST   same as --bin-dest
-  CODEXCODE_PYTHON     pin a specific Python interpreter at runtime
 
 EOF
 }
@@ -54,50 +53,35 @@ do_cmd() {
     fi
 }
 
-MIN_MAJOR=3
-MIN_MINOR=8
+MIN_NODE_MAJOR=20
 
-check_python() {
-    local bin="$1"
-    "$bin" -c '
-import sys
-required = (3, 8)
-sys.exit(0 if sys.version_info[:2] >= required else 2)
-' >/dev/null 2>&1
-}
-
-find_python() {
-    if [ -n "${CODEXCODE_PYTHON:-}" ] && command -v "$CODEXCODE_PYTHON" >/dev/null 2>&1 && check_python "$CODEXCODE_PYTHON"; then
-        echo "$CODEXCODE_PYTHON"
-        return 0
-    fi
-    for cand in python3.13 python3.12 python3.11 python3.10 python3.9 python3.8 python3 python; do
-        if command -v "$cand" >/dev/null 2>&1 && check_python "$cand"; then
-            echo "$cand"
-            return 0
-        fi
-    done
-    return 1
-}
-
-PYTHON="$(find_python || true)"
-if [ -z "$PYTHON" ]; then
+if ! command -v node >/dev/null 2>&1; then
     cat >&2 <<EOF
-CodexCode needs Python ${MIN_MAJOR}.${MIN_MINOR} or newer.
+CodexCode needs Node.js ${MIN_NODE_MAJOR} or newer.
 
 Install it with one of:
-  macOS (Homebrew):    brew install python
-  Debian / Ubuntu:     sudo apt-get install -y python3
-  Fedora / RHEL:       sudo dnf install -y python3
-  Arch Linux:          sudo pacman -S python
-  Windows (winget):    winget install Python.Python.3
+  macOS (Homebrew):    brew install node
+  Debian / Ubuntu:     sudo apt-get install -y nodejs npm
+  Fedora / RHEL:       sudo dnf install -y nodejs npm
+  Arch Linux:          sudo pacman -S nodejs npm
+  Windows (winget):    winget install OpenJS.NodeJS
 
 Then re-run ./install.sh.
 
 EOF
     exit 1
 fi
-say "found python: $PYTHON ($("$PYTHON" -c 'import sys; print(sys.version.split()[0])'))"
+NODE_MAJOR="$(node -p 'process.versions.node.split(".")[0]')"
+if [ "$NODE_MAJOR" -lt "$MIN_NODE_MAJOR" ]; then
+    echo "CodexCode needs Node.js ${MIN_NODE_MAJOR} or newer, found $(node --version)." >&2
+    exit 1
+fi
+if ! command -v npm >/dev/null 2>&1; then
+    echo "CodexCode needs npm on PATH. Install npm and re-run ./install.sh." >&2
+    exit 1
+fi
+say "found node: $(command -v node) ($(node --version))"
+say "found npm: $(command -v npm) ($(npm --version))"
 
 if ! command -v claude >/dev/null 2>&1; then
     say "warning: 'claude' CLI not found on PATH"
@@ -107,6 +91,10 @@ if ! command -v codex >/dev/null 2>&1; then
     say "warning: 'codex' CLI not found on PATH"
     say "  install: npm install -g @openai/codex (or see https://github.com/openai/codex)"
 fi
+
+say "installing dependencies and building TypeScript"
+do_cmd "cd '$ROOT' && npm install"
+do_cmd "cd '$ROOT' && npm run build"
 
 say "symlinking $ROOT/bin/codexcode into $BIN_DEST"
 do_cmd "mkdir -p '$BIN_DEST'"
@@ -135,3 +123,4 @@ if [ "$SKIP_SKILL" != 1 ]; then
 fi
 
 say "done. Try:  codexcode verify"
+say "if /codexcode is missing in an already-open Claude Code session, restart Claude Code"

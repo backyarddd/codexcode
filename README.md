@@ -21,7 +21,7 @@ implementation, which produces unusually candid critiques.
 | Requirement | Notes |
 | --- | --- |
 | git 2.20+ | required for worktrees |
-| Python 3.8+ | stdlib only, preinstalled on macOS and most Linux |
+| Node.js 20+ and npm | used to build and run the TypeScript CLI |
 | Claude Code CLI (`claude`) | https://docs.claude.com/en/docs/claude-code |
 | Codex CLI (`codex`) | `npm i -g @openai/codex` or https://github.com/openai/codex |
 | bash | install script and entry shim |
@@ -39,15 +39,25 @@ cd codexcode
 
 `install.sh` is idempotent. It:
 
-1. Verifies Python 3.8+ (prints install hints if missing).
-2. Warns if `claude` or `codex` is missing.
-3. Symlinks `bin/codexcode` to `~/.local/bin/codexcode`.
-4. Copies the Claude Code skill to `~/.claude/skills/codexcode/`.
-5. Copies the Codex skill to `~/.codex/skills/codexcode/`.
+1. Verifies Node.js 20+ and npm (prints install hints if missing).
+2. Runs `npm install` and `npm run build`.
+3. Warns if `claude` or `codex` is missing.
+4. Symlinks `bin/codexcode` to `~/.local/bin/codexcode`.
+5. Copies the Claude Code skill to `~/.claude/skills/codexcode/`.
+6. Copies the Codex skill to `~/.codex/skills/codexcode/`.
 
 Both skills invoke as `/codexcode <task>`.
 
 Options: `--bin-dest DIR`, `--skip-plugin`, `--skip-skill`, `--dry-run`.
+
+If you installed while Claude Code was already open and `/codexcode` does not
+appear, restart Claude Code. Claude Code watches existing skill directories,
+but creating the top-level `~/.claude/skills` directory for the first time is
+only picked up on startup.
+
+If the skill loads but says `codexcode` is not found, add `~/.local/bin` to the
+shell profile used to start Claude Code, or run the installer with
+`--bin-dest` pointing at a directory already on PATH.
 
 Uninstall: remove `~/.claude/skills/codexcode`, `~/.codex/skills/codexcode`,
 and the symlink.
@@ -291,8 +301,8 @@ reviews are idempotent and do not rerun the implementations.
 **Worktrees were not cleaned up after a crash.** `codexcode list` shows
 leftover sessions; `codexcode abandon <id>` removes them.
 
-**Python interpreter not found.** Set `CODEXCODE_PYTHON=/path/to/python3` or
-install Python 3.8+. The entry shim prints platform-specific install hints.
+**Node.js not found or too old.** Install Node.js 20+ and npm, then rerun
+`./install.sh`. The entry shim prints platform-specific install hints.
 
 ---
 
@@ -336,7 +346,6 @@ All subcommands print JSON.
 Environment overrides:
 
 ```
-CODEXCODE_PYTHON          pin a specific Python interpreter
 CODEXCODE_CLAUDE_FLAGS    override flags passed to `claude` invocations
 CODEXCODE_CODEX_FLAGS     override flags passed to `codex` invocations
 CODEXCODE_BIN_DEST        install.sh symlink target (default ~/.local/bin)

@@ -6,5 +6,6 @@
     "name": "backyarddd"
   },
   "homepage": "https://github.com/backyarddd/codexcode",
-  "repository": "https://github.com/backyarddd/codexcode"
+  "repository": "https://github.com/backyarddd/codexcode",
+  "skills": "./skills/"
 }

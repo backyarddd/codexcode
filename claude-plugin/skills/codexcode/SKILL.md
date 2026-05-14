@@ -9,6 +9,12 @@ If `$ARGUMENTS` is empty, ask the user once for the task they want to race, then
 
 ## Phase 0: preflight
 
+Before running any command, resolve the executable you will use:
+
+- Prefer `codexcode` when `command -v codexcode` finds it.
+- If it is not on PATH but `$HOME/.local/bin/codexcode` is executable, use that full path.
+- If neither works, stop and tell the user to add the install destination to PATH or rerun `./install.sh --bin-dest <dir-on-PATH>`.
+
 Run, in order, and stop immediately if any step fails:
 
 ```bash
@@ -73,7 +79,10 @@ This runs both reviews in parallel, headlessly. It blocks until both finish. Eac
 codexcode artifact <session_id>
 ```
 
-Pipe the full artifact to the user verbatim, including the two cross-reviews. Do not summarize the artifact away. After the artifact, add one line: "Tell me how you want to land this." Do not enumerate options.
+Your response to the user for this phase must include the full stdout from
+`codexcode artifact <session_id>` verbatim, including the two cross-reviews.
+Do not replace it with a summary, even if it is long. After the artifact, add
+one line: "Tell me how you want to land this." Do not enumerate options.
 
 ## Phase 6: acceptance (natural language)
 
