@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { CHALLENGER, HOST } from "./constants.js";
+import { CHALLENGER, HOST, type Side } from "./constants.js";
 import { implementationCommand, runForeground } from "./agents.js";
 import {
   diffPath,
@@ -13,7 +13,7 @@ import {
   writeText,
 } from "./state.js";
 
-const REVIEW_PROMPT_TEMPLATE = `You are reviewing another coding agent's implementation of a task.
+export const REVIEW_PROMPT_TEMPLATE = `You are reviewing another coding agent's implementation of a task.
 
 Read the original task description in PROMPT.md and the proposed change in
 OTHER_DIFF.patch (both files are in your current working directory).
@@ -37,7 +37,11 @@ OTHER_DIFF.patch or PROMPT.md. Do not produce code beyond small inline
 snippets in the review itself. When REVIEW.md is complete you are done.
 `;
 
-function prepareReviewWorkspace(workspace: string, prompt: string, diffText: string): void {
+export function prepareReviewWorkspace(
+  workspace: string,
+  prompt: string,
+  diffText: string,
+): void {
   mkdirSync(workspace, { recursive: true });
   writeFileSync(join(workspace, "PROMPT.md"), prompt, "utf8");
   writeFileSync(join(workspace, "OTHER_DIFF.patch"), diffText, "utf8");
@@ -46,6 +50,82 @@ function prepareReviewWorkspace(workspace: string, prompt: string, diffText: str
     "<!-- write your review here; replace this placeholder -->\n",
     "utf8",
   );
+}
+
+function reviewWorkspace(sessionId: string, reviewer: Side): string {
+  return join(
+    sessionPath(sessionId),
+    "reviews",
+    reviewer === HOST ? "host_workspace" : "challenger_workspace",
+  );
+}
+
+function reviewLogPath(sessionId: string, reviewer: Side): string {
+  return join(
+    sessionPath(sessionId),
+    "logs",
+    reviewer === HOST ? "host_review.log" : "challenger_review.log",
+  );
+}
+
+function diffForReviewer(sessionId: string, reviewer: Side): string {
+  return readText(diffPath(sessionId, reviewer === HOST ? CHALLENGER : HOST)) ?? "";
+}
+
+function reviewKey(reviewer: Side): string {
+  return reviewer === HOST ? "host_of_challenger" : "challenger_of_host";
+}
+
+function setReviewMeta(
+  sessionId: string,
+  reviewer: Side,
+  value: Record<string, unknown>,
+): void {
+  const meta = loadMeta(sessionId);
+  const reviews = { ...meta.reviews, [reviewKey(reviewer)]: value };
+  const phase =
+    existsSync(reviewPath(sessionId, HOST)) && existsSync(reviewPath(sessionId, CHALLENGER))
+      ? "reviewed"
+      : "reviewing";
+  updateMeta(sessionId, { reviews, phase });
+}
+
+export function prepareReview(sessionId: string, reviewer: Side): {
+  workspace: string;
+  prompt_file: string;
+  diff_file: string;
+  review_file: string;
+  review_prompt: string;
+} {
+  const workspace = reviewWorkspace(sessionId, reviewer);
+  rmSync(workspace, { recursive: true, force: true });
+  prepareReviewWorkspace(
+    workspace,
+    readText(promptPath(sessionId)) ?? "",
+    diffForReviewer(sessionId, reviewer),
+  );
+  return {
+    workspace,
+    prompt_file: join(workspace, "PROMPT.md"),
+    diff_file: join(workspace, "OTHER_DIFF.patch"),
+    review_file: join(workspace, "REVIEW.md"),
+    review_prompt: REVIEW_PROMPT_TEMPLATE,
+  };
+}
+
+export function savePreparedReview(sessionId: string, reviewer: Side): string {
+  const reviewFile = join(reviewWorkspace(sessionId, reviewer), "REVIEW.md");
+  if (!existsSync(reviewFile)) {
+    throw new Error(`review file not found: ${reviewFile}`);
+  }
+  const review = readFileSync(reviewFile, "utf8");
+  writeText(reviewPath(sessionId, reviewer), review);
+  setReviewMeta(sessionId, reviewer, {
+    exit_code: 0,
+    log: null,
+    mode: "live",
+  });
+  return review;
 }
 
 async function runOneReview(input: {
@@ -63,65 +143,66 @@ async function runOneReview(input: {
   return [rc, review];
 }
 
+export async function runHeadlessReview(
+  sessionId: string,
+  reviewer: Side,
+): Promise<{ exit_code: number; review: string; log: string; review_path: string }> {
+  const meta = loadMeta(sessionId);
+  const workspace = reviewWorkspace(sessionId, reviewer);
+  const logPath = reviewLogPath(sessionId, reviewer);
+  rmSync(workspace, { recursive: true, force: true });
+  const [rc, review] = await runOneReview({
+    agent: reviewer === HOST ? meta.host_agent : meta.challenger_agent,
+    prompt: readText(promptPath(sessionId)) ?? "",
+    diffText: diffForReviewer(sessionId, reviewer),
+    workspace,
+    logPath,
+  }).catch((error: unknown): [number, string] => [
+    1,
+    `_review failed to run: ${String(error)}_\n`,
+  ]);
+
+  writeText(reviewPath(sessionId, reviewer), review);
+  setReviewMeta(sessionId, reviewer, {
+    exit_code: rc,
+    log: logPath,
+    mode: "headless",
+  });
+  return {
+    exit_code: rc,
+    review,
+    log: logPath,
+    review_path: reviewPath(sessionId, reviewer),
+  };
+}
+
 export async function runCrossReviews(sessionId: string): Promise<{
   host_of_challenger: string;
   challenger_of_host: string;
 }> {
-  const meta = loadMeta(sessionId);
-  const prompt = readText(promptPath(sessionId)) ?? "";
-  const hostDiff = readText(diffPath(sessionId, HOST)) ?? "";
-  const challengerDiff = readText(diffPath(sessionId, CHALLENGER)) ?? "";
-  const root = sessionPath(sessionId);
-  const reviewsRoot = join(root, "reviews");
-  mkdirSync(reviewsRoot, { recursive: true });
-
-  const hostWorkspace = join(reviewsRoot, "host_workspace");
-  const challengerWorkspace = join(reviewsRoot, "challenger_workspace");
-  rmSync(hostWorkspace, { recursive: true, force: true });
-  rmSync(challengerWorkspace, { recursive: true, force: true });
-
-  const hostLog = join(root, "logs", "host_review.log");
-  const challengerLog = join(root, "logs", "challenger_review.log");
-
-  const hostReviewPromise = runOneReview({
-    agent: meta.host_agent,
-    prompt,
-    diffText: challengerDiff,
-    workspace: hostWorkspace,
-    logPath: hostLog,
-  }).catch((error: unknown): [number, string] => [
-    1,
-    `_review failed to run: ${String(error)}_\n`,
+  const [hostResult, challengerResult] = await Promise.all([
+    runHeadlessReview(sessionId, HOST),
+    runHeadlessReview(sessionId, CHALLENGER),
   ]);
 
-  const challengerReviewPromise = runOneReview({
-    agent: meta.challenger_agent,
-    prompt,
-    diffText: hostDiff,
-    workspace: challengerWorkspace,
-    logPath: challengerLog,
-  }).catch((error: unknown): [number, string] => [
-    1,
-    `_review failed to run: ${String(error)}_\n`,
-  ]);
-
-  const [[hostRc, hostReview], [challengerRc, challengerReview]] = await Promise.all([
-    hostReviewPromise,
-    challengerReviewPromise,
-  ]);
-
-  writeText(reviewPath(sessionId, HOST), hostReview);
-  writeText(reviewPath(sessionId, CHALLENGER), challengerReview);
   updateMeta(sessionId, {
     reviews: {
-      host_of_challenger: { exit_code: hostRc, log: hostLog },
-      challenger_of_host: { exit_code: challengerRc, log: challengerLog },
+      host_of_challenger: {
+        exit_code: hostResult.exit_code,
+        log: hostResult.log,
+        mode: "headless",
+      },
+      challenger_of_host: {
+        exit_code: challengerResult.exit_code,
+        log: challengerResult.log,
+        mode: "headless",
+      },
     },
     phase: "reviewed",
   });
 
   return {
-    host_of_challenger: hostReview,
-    challenger_of_host: challengerReview,
+    host_of_challenger: hostResult.review,
+    challenger_of_host: challengerResult.review,
   };
 }

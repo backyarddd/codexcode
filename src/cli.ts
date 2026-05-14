@@ -22,6 +22,7 @@ import {
 } from "./isolation.js";
 import {
   diffPath,
+  artifactPath,
   initSession,
   listSessions,
   loadMeta,
@@ -45,7 +46,12 @@ import {
   readExitCode,
   spawnBackground,
 } from "./agents.js";
-import { runCrossReviews } from "./review.js";
+import {
+  prepareReview,
+  runCrossReviews,
+  runHeadlessReview,
+  savePreparedReview,
+} from "./review.js";
 import { renderArtifact } from "./artifact.js";
 
 const VERSION = "0.1.0";
@@ -307,6 +313,22 @@ async function cmdReview(args: ParsedArgs): Promise<number> {
   if (!["implementations_complete", "reviewed"].includes(meta.phase)) {
     process.stderr.write(`warning: session phase is ${JSON.stringify(meta.phase)}, expected 'implementations_complete'\n`);
   }
+  const reviewerRaw = flagString(args, "reviewer");
+  if (reviewerRaw) {
+    if (!isSide(reviewerRaw)) {
+      return die(`--reviewer must be ${HOST} or ${CHALLENGER}`);
+    }
+    const result = await runHeadlessReview(sessionId, reviewerRaw);
+    emit({
+      session_id: sessionId,
+      reviewer: reviewerRaw,
+      review_path: result.review_path,
+      review_bytes: Buffer.byteLength(result.review, "utf8"),
+      exit_code: result.exit_code,
+      log_path: result.log,
+    });
+    return result.exit_code === 0 ? 0 : 1;
+  }
   const reviews = await runCrossReviews(sessionId);
   emit({
     session_id: sessionId,
@@ -318,16 +340,51 @@ async function cmdReview(args: ParsedArgs): Promise<number> {
   return 0;
 }
 
+function cmdPrepareReview(args: ParsedArgs): number {
+  const sessionId = args.positionals[0];
+  const reviewerRaw = flagString(args, "reviewer");
+  if (!sessionId) {
+    return die("missing session id");
+  }
+  if (!reviewerRaw || !isSide(reviewerRaw)) {
+    return die(`--reviewer must be ${HOST} or ${CHALLENGER}`);
+  }
+  const result = prepareReview(sessionId, reviewerRaw);
+  emit({ session_id: sessionId, reviewer: reviewerRaw, ...result });
+  return 0;
+}
+
+function cmdSaveReview(args: ParsedArgs): number {
+  const sessionId = args.positionals[0];
+  const reviewerRaw = flagString(args, "reviewer");
+  if (!sessionId) {
+    return die("missing session id");
+  }
+  if (!reviewerRaw || !isSide(reviewerRaw)) {
+    return die(`--reviewer must be ${HOST} or ${CHALLENGER}`);
+  }
+  const text = savePreparedReview(sessionId, reviewerRaw);
+  emit({
+    session_id: sessionId,
+    reviewer: reviewerRaw,
+    review_path: reviewPath(sessionId, reviewerRaw),
+    review_bytes: Buffer.byteLength(text, "utf8"),
+  });
+  return 0;
+}
+
 function cmdArtifact(args: ParsedArgs): number {
   const sessionId = args.positionals[0];
   if (!sessionId) {
     return die("missing session id");
   }
   const text = renderArtifact(sessionId);
+  const savedPath = artifactPath(sessionId);
+  writeFileSync(savedPath, text, "utf8");
   const out = flagString(args, "out");
   if (out) {
     writeFileSync(out, text, "utf8");
-    emit({ session_id: sessionId, artifact_path: out });
+    emit({ session_id: sessionId, artifact_path: out, session_artifact_path: savedPath });
   } else {
     process.stdout.write(text);
   }
@@ -438,7 +495,7 @@ function cmdList(): number {
 }
 
 function printHelp(): number {
-  process.stdout.write(`Usage: codexcode <command> [options]\n\nCommands:\n  verify, start, status, wait, submit, collect-challenger, review,\n  artifact, show, files, apply, cleanup, abandon, list, version\n`);
+  process.stdout.write(`Usage: codexcode <command> [options]\n\nCommands:\n  verify, start, status, wait, submit, collect-challenger, prepare-review,\n  save-review, review, artifact, show, files, apply, cleanup, abandon,\n  list, version\n`);
   return 1;
 }
 
@@ -462,6 +519,10 @@ export async function main(argv = process.argv.slice(2)): Promise<number> {
         return cmdSubmit(args);
       case "collect-challenger":
         return cmdCollectChallenger(args);
+      case "prepare-review":
+        return cmdPrepareReview(args);
+      case "save-review":
+        return cmdSaveReview(args);
       case "review":
         return cmdReview(args);
       case "artifact":

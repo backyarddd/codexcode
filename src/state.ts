@@ -163,6 +163,10 @@ export function promptPath(sessionId: string): string {
   return join(sessionPath(sessionId), "prompt.txt");
 }
 
+export function artifactPath(sessionId: string): string {
+  return join(sessionPath(sessionId), "artifact.md");
+}
+
 export function writeText(path: string, content: string): void {
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, content, "utf8");

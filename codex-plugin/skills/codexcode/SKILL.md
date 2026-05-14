@@ -71,11 +71,40 @@ codexcode collect-challenger <session_id>
 
 ## Phase 4: cross-reviews
 
+First, prepare Codex's review workspace:
+
 ```bash
-codexcode review <session_id>
+codexcode prepare-review <session_id> --reviewer host
 ```
 
-This runs both reviews in parallel, headlessly. It blocks until both finish. Each review is written to `~/.codexcode/sessions/<session_id>/reviews/by_host.md` and `by_challenger.md`. You do not need to read them directly; the artifact will include them.
+Parse the JSON output. You will use:
+- `prompt_file`
+- `diff_file`
+- `review_file`
+- `review_prompt`
+
+Now, in this current Codex session, perform the host review yourself. Read
+`prompt_file` and `diff_file`, follow `review_prompt`, and write the review to
+`review_file`. Do not run `codex`, `codex exec`, or any other separate Codex
+process for this host review. Modify only `review_file` inside the review
+workspace.
+
+When the review file is complete, save it:
+
+```bash
+codexcode save-review <session_id> --reviewer host
+```
+
+Then run only the challenger's review headlessly:
+
+```bash
+codexcode review <session_id> --reviewer challenger
+```
+
+This runs Claude Code reviewing Codex's diff and writes the review to
+`~/.codexcode/sessions/<session_id>/reviews/by_challenger.md`. It blocks until
+the challenger review finishes. Codex's review was already produced in this
+live session and saved to `by_host.md`.
 
 ## Phase 5: present the artifact
 
@@ -85,8 +114,12 @@ codexcode artifact <session_id>
 
 Your response to the user for this phase must include the full stdout from
 `codexcode artifact <session_id>` verbatim, including the two cross-reviews.
-Do not replace it with a summary, even if it is long. After the artifact, add
-one line: "Tell me how you want to land this." Do not enumerate options.
+Do not replace it with a summary, even if it is long. Do not respond with only
+"Tell me how you want to land this." After the artifact, add one line:
+"Tell me how you want to land this." Do not enumerate options. The command
+also saves the same artifact at
+`~/.codexcode/sessions/<session_id>/artifact.md`; if a non-interactive host
+cannot print the full artifact, it must at least report that exact path.
 
 ## Phase 6: acceptance (natural language)
 

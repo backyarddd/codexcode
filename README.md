@@ -110,11 +110,13 @@ challenger = the other agent, run headlessly
    worktree. The challenger runs `claude -p` or `codex exec` headlessly in
    its worktree. The slower agent gates total time.
 4. **Cross-review.** Once both diffs are captured, each agent reviews the
-   other's diff in parallel, headlessly, in a disposable scratch directory
-   containing only the prompt and the diff. Neither reviewer sees its own
-   implementation. Neither sees the other review.
+   other's diff in a disposable scratch directory containing only the prompt
+   and the diff. The host review is written by your live Claude Code or Codex
+   session. The challenger review runs headlessly. Neither reviewer sees its
+   own implementation. Neither sees the other review.
 5. **Artifact.** A single markdown document: both reviews up top, then a
-   structural summary, then both diffs.
+   structural summary, then both diffs. It prints to stdout and is also saved
+   to `~/.codexcode/sessions/<id>/artifact.md`.
 6. **Acceptance.** You tell the host in plain English what to do. The host
    interprets, applies, commits on the original branch, and removes all
    isolation state.
@@ -167,7 +169,7 @@ Never a wall of options.
 
 ## The cross-review mechanic
 
-Each review runs in a fresh scratch directory containing exactly:
+Each review uses a fresh scratch directory containing exactly:
 
 ```
 PROMPT.md         original task verbatim
@@ -178,6 +180,12 @@ REVIEW.md         empty placeholder for the reviewer to fill in
 The reviewer is asked to cover correctness, design choices, edge cases, code
 quality, and what it would have done differently. It is forbidden from
 modifying anything other than `REVIEW.md`.
+
+The host review is done in the live slash-command session, so invoking
+`/codexcode` inside Claude Code does not launch a second Claude Code reviewer;
+invoking it inside Codex does not launch a second Codex reviewer. The
+challenger review still runs headlessly because the challenger is not the
+active window.
 
 Reviews are blinded: neither reviewer is told which agent produced the diff,
 neither sees its own implementation, and neither sees the other review.
@@ -200,7 +208,7 @@ the cost of running two agents.
 | --- | --- | --- | --- |
 | Host implementation | host CLI | `~/.codexcode/sessions/<id>/work/host` | git worktree off your HEAD |
 | Challenger implementation | challenger CLI | `~/.codexcode/sessions/<id>/work/challenger` | separate worktree |
-| Host review | host CLI | `~/.codexcode/sessions/<id>/reviews/host_workspace` | disposable scratch |
+| Host review | live host session | `~/.codexcode/sessions/<id>/reviews/host_workspace` | disposable scratch |
 | Challenger review | challenger CLI | `~/.codexcode/sessions/<id>/reviews/challenger_workspace` | disposable scratch |
 
 Ephemeral branches are named `codexcode-<id>-claude-code` and
@@ -218,10 +226,10 @@ If a run crashes, `codexcode list` shows leftover sessions and
 
 ## Cost expectations
 
-A run pays for four agent invocations: two implementations and two reviews.
-Implementations dominate cost; reviews are typically a fraction of an
-implementation. Total cost is roughly 2.5x to 3x what a single agent would
-have cost on the same task. Use CodexCode when the cost of the wrong answer
+A run pays for three extra agent activities beyond your live host work: the
+headless challenger implementation, the live host review, and the headless
+challenger review. Implementations dominate cost; reviews are typically a
+fraction of an implementation. Use CodexCode when the cost of the wrong answer
 matters more than the cost of the run.
 
 ---
@@ -295,8 +303,11 @@ of its log. Kill the PID it reports and `codexcode abandon <id>` to clean up.
 
 **A review is missing in the artifact.** The reviewer either timed out,
 hit a rate limit, or refused to write `REVIEW.md`. Logs are under
-`~/.codexcode/sessions/<id>/logs/`. Re-run with `codexcode review <id>`;
-reviews are idempotent and do not rerun the implementations.
+`~/.codexcode/sessions/<id>/logs/`. For the challenger, re-run with
+`codexcode review <id> --reviewer challenger`. For the live host, re-run
+`codexcode prepare-review <id> --reviewer host`, write `REVIEW.md`, then run
+`codexcode save-review <id> --reviewer host`. Reviews are idempotent and do
+not rerun the implementations.
 
 **Worktrees were not cleaned up after a crash.** `codexcode list` shows
 leftover sessions; `codexcode abandon <id>` removes them.
@@ -312,7 +323,7 @@ leftover sessions; `codexcode abandon <id>` removes them.
 - Selective merge is file-granular. Within-file mixing is done by hand in
   hybrid mode.
 - Reviews can fail individually. The artifact still renders; rerun review.
-- No retries framework. Rerun `start` or `review` if needed.
+- No retries framework. Rerun `start` or the relevant review command if needed.
 - macOS and Linux only. Windows users need WSL.
 - Requires git. Non-git projects are not supported.
 
@@ -329,7 +340,10 @@ codexcode status <id>                               session phase and challenger
 codexcode wait <id> [--poll N] [--timeout N]        block until challenger exits
 codexcode submit <id> --side <host|challenger>      snapshot a worktree's diff
 codexcode collect-challenger <id>                   shortcut for `submit --side challenger`
-codexcode review <id>                               run both cross-reviews in parallel
+codexcode prepare-review <id> --reviewer <side>     create a review workspace
+codexcode save-review <id> --reviewer <side>        save REVIEW.md from a review workspace
+codexcode review <id> --reviewer <side>             run one headless review
+codexcode review <id>                               legacy: run both reviews headlessly
 codexcode artifact <id> [--out PATH]                render the comparison artifact
 codexcode show <id> --side <s> --path <p>           print a file from a worktree
 codexcode files <id> --side <s>                     list changed files in a worktree
